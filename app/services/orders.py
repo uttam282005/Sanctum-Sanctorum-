@@ -1,13 +1,17 @@
-"""Order operations: placing, paying and cancelling purchases."""
+import threading
 from datetime import datetime
 from typing import Dict
 
 from fastapi import HTTPException
+from sqlalchemy import update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models import Book, Member, MemberTier, Order, OrderItem, OrderStatus
 from app.schemas import OrderCreate
 from app.services.members import ensure_can_access_restricted
+
+_order_lock = threading.Lock()
 
 # Percentage discount granted by each membership tier.
 TIER_DISCOUNT_PERCENT: Dict[str, int] = {
@@ -39,58 +43,70 @@ def create_order(db: Session, data: OrderCreate, now: datetime) -> Order:
     Then stock is decremented for every item and prices are snapshotted.
     Pricing: discount_cents = subtotal * percent // 100; total = subtotal - discount.
     """
-    member = db.get(Member, data.member_id)
-    if member is None:
-        raise HTTPException(status_code=404, detail="Member not found")
+    with _order_lock:
+        member = db.get(Member, data.member_id)
+        if member is None:
+            raise HTTPException(status_code=404, detail="Member not found")
 
-    items_with_books = []
-    for item in data.items:
-        book = db.get(Book, item.book_id)
-        if book is None:
-            raise HTTPException(status_code=404, detail="Book not found")
-        items_with_books.append((item, book))
+        items_with_books = []
+        for item in data.items:
+            book = db.get(Book, item.book_id)
+            if book is None:
+                raise HTTPException(status_code=404, detail="Book not found")
+            items_with_books.append((item, book))
 
-    for _, book in items_with_books:
-        if book.restricted:
-            ensure_can_access_restricted(member)
-            break
+        for _, book in items_with_books:
+            if book.restricted:
+                ensure_can_access_restricted(member)
+                break
 
-    for item, book in items_with_books:
-        if book.stock < item.quantity:
-            raise HTTPException(status_code=409, detail=f"Insufficient stock for book: {book.title}")
+        for item, book in items_with_books:
+            if book.stock < item.quantity:
+                raise HTTPException(status_code=409, detail=f"Insufficient stock for book: {book.title}")
 
-    total_quantity = sum(item.quantity for item in data.items)
-    order_items = []
-    subtotal_cents = 0
+        total_quantity = sum(item.quantity for item in data.items)
+        order_items = []
+        subtotal_cents = 0
 
-    for item, book in items_with_books:
-        book.stock -= item.quantity
-        order_item = OrderItem(
-            book_id=book.id,
-            quantity=item.quantity,
-            unit_price_cents=book.price_cents,
+        for item, book in items_with_books:
+            res = db.execute(
+                update(Book)
+                .where(Book.id == book.id, Book.stock >= item.quantity)
+                .values(stock=Book.stock - item.quantity)
+            )
+            if res.rowcount == 0:
+                db.rollback()
+                raise HTTPException(status_code=409, detail=f"Insufficient stock for book: {book.title}")
+            order_item = OrderItem(
+                book_id=book.id,
+                quantity=item.quantity,
+                unit_price_cents=book.price_cents,
+            )
+            order_items.append(order_item)
+            subtotal_cents += book.price_cents * item.quantity
+
+        discount_percent = calculate_discount_percent(member, total_quantity)
+        discount_cents = (subtotal_cents * discount_percent) // 100
+        total_cents = subtotal_cents - discount_cents
+
+        order = Order(
+            member_id=member.id,
+            status=OrderStatus.PENDING.value,
+            subtotal_cents=subtotal_cents,
+            discount_percent=discount_percent,
+            discount_cents=discount_cents,
+            total_cents=total_cents,
+            created_at=now,
+            items=order_items,
         )
-        order_items.append(order_item)
-        subtotal_cents += book.price_cents * item.quantity
-
-    discount_percent = calculate_discount_percent(member, total_quantity)
-    discount_cents = (subtotal_cents * discount_percent) // 100
-    total_cents = subtotal_cents - discount_cents
-
-    order = Order(
-        member_id=member.id,
-        status=OrderStatus.PENDING.value,
-        subtotal_cents=subtotal_cents,
-        discount_percent=discount_percent,
-        discount_cents=discount_cents,
-        total_cents=total_cents,
-        created_at=now,
-        items=order_items,
-    )
-    db.add(order)
-    db.commit()
-    db.refresh(order)
-    return order
+        db.add(order)
+        try:
+            db.commit()
+        except IntegrityError:
+            db.rollback()
+            raise HTTPException(status_code=409, detail="Insufficient stock due to concurrent order")
+        db.refresh(order)
+        return order
 
 
 def get_order(db: Session, order_id: int) -> Order:
@@ -119,7 +135,11 @@ def cancel_order(db: Session, order_id: int) -> Order:
         raise HTTPException(status_code=409, detail=f"Cannot cancel an order that is {order.status}")
     order.status = OrderStatus.CANCELLED.value
     for item in order.items:
-        item.book.stock += item.quantity
+        db.execute(
+            update(Book)
+            .where(Book.id == item.book_id)
+            .values(stock=Book.stock + item.quantity)
+        )
     db.commit()
     db.refresh(order)
     return order

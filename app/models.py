@@ -5,7 +5,7 @@ import enum
 from datetime import datetime
 from typing import List, Optional
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String
+from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
@@ -28,6 +28,9 @@ class OrderStatus(str, enum.Enum):
 
 class Book(Base):
     __tablename__ = "books"
+    __table_args__ = (
+        CheckConstraint("stock >= 0", name="check_book_stock_non_negative"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     title: Mapped[str] = mapped_column(String(200))
