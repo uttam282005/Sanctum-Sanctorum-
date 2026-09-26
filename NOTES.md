@@ -1,18 +1,24 @@
 # Sanctum Sanctorum Bookstore — Project Notes
 
-## Live Deployment
-
-- **Deployment URL**: `https://sanctum-sanctorum.fly.dev` (or deployable via `fly deploy` / Render / Docker)
-- **Local / Docker Entry**:
-  - Local: `uv run uvicorn app.main:app --port 8000`
-  - Docker: `docker run -p 8000:8000 sanctum-sanctorum`
-  - Web UI: `http://localhost:8000/`
-  - OpenAPI Docs: `http://localhost:8000/docs`
+- **GitHub Repository**: [https://github.com/uttam282005/Sanctum-Sanctorum-](https://github.com/uttam282005/Sanctum-Sanctorum-) (Public)
+- **Deployment URL**: Live deployment link (e.g. on Render / Vercel / Fly.io)
 - **Seeded Demo Accounts**:
   - ID 1: Wong Li (`wong@example.com`, tier: `supreme`)
   - ID 2: Christine Palmer (`christine@example.com`, tier: `master`)
   - ID 3: Jonathan Pangborn (`jonathan@example.com`, tier: `adept`)
   - ID 4: Sara Lin (`sara@example.com`, tier: `apprentice`)
+
+### Deployment Options Included in Repository:
+1. **Render (Recommended — Free & No Credit Card Required)**:
+   - Connect `https://github.com/uttam282005/Sanctum-Sanctorum-` on [render.com](https://render.com).
+   - Render automatically detects `render.yaml` and `Dockerfile`.
+   - Click **Deploy** to receive a public URL (e.g. `https://sanctum-sanctorum.onrender.com`).
+2. **Vercel**:
+   - `vercel.json` and `api/index.py` are configured for serverless Python deployment.
+   - Import `uttam282005/Sanctum-Sanctorum-` in Vercel Dashboard to deploy.
+3. **Docker**:
+   - `docker build -t sanctum-sanctorum .`
+   - `docker run -p 8000:8000 sanctum-sanctorum`
 
 ---
 
