@@ -1,7 +1,8 @@
 # Sanctum Sanctorum Bookstore — Project Notes
 
 - **GitHub Repository**: [https://github.com/uttam282005/Sanctum-Sanctorum-](https://github.com/uttam282005/Sanctum-Sanctorum-) (Public)
-- **Deployment URL**: Live deployment link (e.g. on Render / Vercel / Fly.io)
+- **Deployment URL**: [https://sanctum-sanctorum-7xlz.onrender.com/](https://sanctum-sanctorum-7xlz.onrender.com/)
+- **Interactive API Docs**: [https://sanctum-sanctorum-7xlz.onrender.com/docs](https://sanctum-sanctorum-7xlz.onrender.com/docs)
 - **Seeded Demo Accounts**:
   - ID 1: Wong Li (`wong@example.com`, tier: `supreme`)
   - ID 2: Christine Palmer (`christine@example.com`, tier: `master`)
